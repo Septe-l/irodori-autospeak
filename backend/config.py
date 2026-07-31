@@ -285,6 +285,7 @@ OVERRIDES_PATH = Path(
     os.environ.get("AUTOSPEAK_SETTINGS_FILE") or (PROJECT_ROOT / "settings.local.json")
 )
 PERSISTED_FIELDS = (
+    "llm_url",
     "llm_model",
     "llm_temperature",
     "speaker_mode",

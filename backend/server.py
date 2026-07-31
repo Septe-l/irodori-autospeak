@@ -62,6 +62,7 @@ class RenameBody(BaseModel):
 
 
 class SettingsBody(BaseModel):
+    llm_url: str | None = None
     llm_model: str | None = None
     speaker_mode: str | None = None
     speakers: list[SpeakerBody] | None = None
@@ -220,6 +221,8 @@ async def read_settings() -> dict:
 async def write_settings(body: SettingsBody) -> dict:
     warnings: list[str] = []
 
+    if body.llm_url is not None:
+        settings.llm_url = _normalize_url(body.llm_url) or settings.llm_url
     if body.llm_model is not None:
         settings.llm_model = body.llm_model
     if body.speaker_mode in ("solo", "duo"):
@@ -366,12 +369,39 @@ async def probe_tts(body: ProbeBody) -> dict:
     return {"url": url, **await engine.tts_client.probe(url)}
 
 
+def _normalize_url(raw: str) -> str:
+    url = raw.strip().rstrip("/")
+    if url and not url.startswith(("http://", "https://")):
+        url = f"http://{url}"
+    return url
+
+
+@app.post("/api/llm/probe")
+async def probe_llm(body: ProbeBody) -> dict:
+    """Check an LM Studio address answers, and list what it can run."""
+    url = _normalize_url(body.url)
+    if not url:
+        raise HTTPException(status_code=400, detail="URLが空です")
+    previous = settings.llm_url
+    settings.llm_url = url
+    try:
+        models = await engine.llm.list_models()
+    finally:
+        settings.llm_url = previous
+    if not models:
+        return {
+            "url": url,
+            "ok": False,
+            "error": "応答がないか、対話できるモデルがありません。"
+            "LM Studio の Server を起動し、Serve on Local Network を有効にしてください。",
+        }
+    return {"url": url, "ok": True, "models": models}
+
+
 @app.post("/api/search/probe")
 async def probe_search(body: ProbeBody) -> dict:
     """Check a SearXNG address answers, and that JSON output is enabled."""
-    url = body.url.strip().rstrip("/")
-    if url and not url.startswith(("http://", "https://")):
-        url = f"http://{url}"
+    url = _normalize_url(body.url)
     if not url:
         raise HTTPException(status_code=400, detail="URLが空です")
     try:

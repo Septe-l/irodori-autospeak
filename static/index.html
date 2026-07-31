@@ -44,9 +44,18 @@
     <button id="btn-close" class="ghost" type="button">閉じる</button>
   </div>
   <div class="panel-body">
-    <label>LLMモデル
-      <select id="set-model"></select>
-    </label>
+    <div class="tts-block">
+      <div class="tts-head"><strong>LLM（LM Studio）</strong></div>
+      <div class="conn-row">
+        <input id="set-llm-url" type="text" placeholder="http://127.0.0.1:1234">
+        <button id="btn-test-llm" class="tts-test" type="button">接続</button>
+      </div>
+      <div id="llm-status" class="tts-status"></div>
+      <label>モデル
+        <select id="set-model"></select>
+      </label>
+      <p class="hint">別マシンのLM Studioを使う場合は、Server設定で「Serve on Local Network」を有効にしてください。</p>
+    </div>
 
     <div class="tts-block">
       <div class="tts-head">

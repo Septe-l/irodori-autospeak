@@ -446,10 +446,27 @@
     updateTtsNote();
   }
 
+  function fillModels(models, selected) {
+    const sel = $("set-model");
+    sel.innerHTML = "";
+    (models || []).forEach((m) => {
+      const o = document.createElement("option");
+      o.value = m.id;
+      // Only a model LM Studio already holds is guaranteed to be selectable;
+      // loading another large one can fail on insufficient memory.
+      o.textContent = m.loaded ? `${m.id}（ロード済み）` : m.id;
+      sel.appendChild(o);
+    });
+    if (selected) sel.value = selected;
+    if (!sel.value && sel.options.length) sel.selectedIndex = 0;
+  }
+
   // ---- SearXNG / MCP connection tests -------------------------------------
 
-  async function probeInto(path, url, statusId, describe) {
+  async function probeInto(path, inputId, statusId, describe) {
+    const input = $(inputId);
     const status = $(statusId);
+    const url = input.value.trim();
     if (!url) { status.textContent = "URLを入力してください"; status.className = "tts-status ng"; return; }
     status.textContent = "確認中…";
     status.className = "tts-status";
@@ -459,6 +476,9 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       }).then((r) => r.json());
+      // Show the address the server actually used, so a typed "host:port"
+      // becomes the "http://host:port" that gets saved.
+      if (data.url) input.value = data.url;
       if (!data.ok) {
         status.textContent = `つながりません: ${data.error || data.detail || "不明"}`;
         status.className = "tts-status ng";
@@ -472,12 +492,20 @@
     }
   }
 
+  $("btn-test-llm").addEventListener("click", async () => {
+    const kept = $("set-model").value;
+    await probeInto("/api/llm/probe", "set-llm-url", "llm-status", (d) => {
+      fillModels(d.models, kept);
+      return `OK  ${d.models.length} モデル`;
+    });
+  });
+
   $("btn-test-search").addEventListener("click", () =>
-    probeInto("/api/search/probe", $("set-searxng").value.trim(), "search-status",
-      (d) => `OK  検索結果 ${d.results} 件（${d.url}）`));
+    probeInto("/api/search/probe", "set-searxng", "search-status",
+      (d) => `OK  検索結果 ${d.results} 件`));
 
   $("btn-test-mcp").addEventListener("click", () =>
-    probeInto("/api/mcp/probe", $("set-mcp-url").value.trim(), "mcp-status",
+    probeInto("/api/mcp/probe", "set-mcp-url", "mcp-status",
       (d) => d.has_search
         ? `OK  ${d.server} ${d.version}（ツール: ${d.tools.join(", ")}）`
         : `つながりましたが memory_search がありません（${d.tools.join(", ")}）`));
@@ -643,17 +671,9 @@
     settingsCache = cfg;
     voiceCache = opt.voices || [];
 
-    const modelSel = $("set-model");
-    modelSel.innerHTML = "";
-    (opt.models || []).forEach((m) => {
-      const o = document.createElement("option");
-      o.value = m.id;
-      // Only a model LM Studio already holds is guaranteed to be selectable;
-      // loading another large one can fail on insufficient memory.
-      o.textContent = m.loaded ? `${m.id}（ロード済み）` : m.id;
-      modelSel.appendChild(o);
-    });
-    modelSel.value = cfg.llm_model;
+    fillModels(opt.models, cfg.llm_model);
+    $("set-llm-url").value = cfg.llm_url || "";
+    $("llm-status").textContent = "";
 
     $("set-speakermode").value = cfg.speaker_mode;
     renderSpeakers(cfg);
@@ -696,6 +716,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        llm_url: $("set-llm-url").value.trim(),
         llm_model: $("set-model").value,
         speaker_mode: $("set-speakermode").value,
         speakers,
