@@ -348,7 +348,7 @@
     voiceCache.forEach((v) => {
       const o = document.createElement("option");
       o.value = v.id;
-      o.textContent = v.id;
+      o.textContent = v.label || v.id;
       select.appendChild(o);
     });
     select.value = previous;
@@ -421,18 +421,20 @@
       .filter((e) => e.url);
   }
 
+  const KIND_LABEL = { caption: "テキスト指定", reference: "参照音声" };
+
   function updateTtsNote() {
     const eps = collectEndpoints();
-    const kinds = new Set(eps.map((e) => e.kind));
+    const kinds = [...new Set(eps.map((e) => e.kind))];
     const note = $("tts-note");
     if (eps.length === 0) {
       note.textContent = "TTSサーバーがありません。音声は生成されません。";
-    } else if (eps.length === 1) {
-      note.textContent = "1台構成です。話者は1人に固定されます。";
     } else {
-      note.textContent = `${eps.length}台構成（${[...kinds]
-        .map((k) => (k === "caption" ? "テキスト指定" : "参照音声"))
-        .join(" / ")}）。2人交互にできます。`;
+      const names = kinds.map((k) => KIND_LABEL[k]).join(" / ");
+      note.textContent =
+        kinds.length >= 2
+          ? `${eps.length}台（${names}）。参照音声とテキスト指定を混ぜた2人構成にできます。`
+          : `${eps.length}台（${names}）。2人とも${names}にすれば2人交互にできます。`;
     }
     syncSpeakerMode();
   }
@@ -493,12 +495,11 @@
   }
 
   function syncSpeakerMode() {
-    // One TTS server can only hold one checkpoint, so duo is not offerable.
-    const single = collectEndpoints().length <= 1;
+    // Duo works on a single server too, as long as both speakers use the kind
+    // that server provides; only a mix of the two kinds needs a second one.
     const select = $("set-speakermode");
-    select.disabled = single;
-    if (single) select.value = "solo";
-    const duo = select.value === "duo" && !single;
+    select.disabled = collectEndpoints().length === 0;
+    const duo = select.value === "duo" && !select.disabled;
     document.querySelectorAll(".speaker-card").forEach((card, i) => {
       card.classList.toggle("dimmed", i > 0 && !duo);
     });
@@ -517,11 +518,12 @@
       row.className = "voice-row";
       const name = document.createElement("span");
       name.className = "vname";
-      name.textContent = v.id;
+      name.textContent = v.label || v.id;
       const meta = document.createElement("span");
       meta.className = "vmeta";
-      // Files live on the TTS servers, so only the name comes back over the API.
-      meta.textContent = v.file && v.file !== v.id ? v.file : "";
+      // The id is what the TTS server knows it as; surface it when a display
+      // name has been set on top.
+      meta.textContent = (v.label && v.label !== v.id) ? v.id : "";
       const ren = document.createElement("button");
       ren.type = "button";
       ren.className = "vrename";
@@ -555,8 +557,9 @@
   }
 
   async function renameVoice(id) {
-    const name = prompt(`「${id}」の新しい名前（英数字・アンダースコア・ハイフン）`, id);
-    if (!name || name === id) return;
+    const current = (voiceCache.find((v) => v.id === id) || {}).label || id;
+    const name = prompt(`「${current}」の新しい表示名（日本語も使えます）`, current);
+    if (!name || name === current) return;
     const resp = await fetch(`/api/voices/${encodeURIComponent(id)}/rename`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -574,7 +577,7 @@
       const sel = card.querySelector(".sp-voice");
       if (sel.dataset.was === id) sel.value = data.id;
     });
-    $("voice-msg").textContent = `名前を変えました: ${id} → ${data.id}`;
+    $("voice-msg").textContent = `名前を変えました: ${id} → ${data.label}`;
   }
 
   async function deleteVoice(id) {

@@ -133,17 +133,21 @@ class Settings(BaseSettings):
     llm_timeout: float = 180.0
 
     # --- Irodori-TTS ---
-    tts_ref_port: int = 8088
-    """Port start_tts.sh launches the reference-audio checkpoint (500M-v3) on."""
-    tts_caption_port: int = 8089
-    """Port start_tts.sh launches the VoiceDesign checkpoint (600M-v3) on."""
+    # One machine runs one TTS server. Two checkpoints on the same Mac fight for
+    # memory and GPU (measured: ~17% slower even when only one is synthesizing),
+    # so a second checkpoint belongs on a second machine.
+    tts_port: int = 8088
+    """Port start_tts.sh launches the local TTS server on."""
+    tts_kind: str = "reference"
+    """Which checkpoint the local server loads: 'reference' (500M-v3, clones a
+    wav) or 'caption' (600M VoiceDesign, takes a text voice description)."""
 
     tts_ref_urls: str = ""
-    """Seeds the endpoint list on first run. Comma-separated; empty means "the
-    local server on tts_ref_port". After that the list is edited in the WebUI
-    and kept in settings.local.json."""
+    """Seeds the endpoint list on first run: extra reference-checkpoint servers
+    on other machines, comma-separated. The local server is added automatically.
+    After first run the list is edited in the WebUI."""
     tts_caption_urls: str = ""
-    """Same, for the VoiceDesign checkpoint on tts_caption_port."""
+    """Same, for VoiceDesign servers on other machines."""
 
     tts_endpoints: list[TTSEndpoint] = Field(default_factory=list)
     """The live list. Empty means "derive it from the *_urls/*_port settings"."""
@@ -179,10 +183,9 @@ class Settings(BaseSettings):
         return self.speakers[index % len(self.speakers)]
 
     def active_speaker_count(self) -> int:
-        # A single TTS server can only offer one checkpoint, so two speakers
-        # would have to share a voice style; solo is forced instead.
-        if self.single_tts():
-            return 1
+        # Two speakers are fine on a single TTS server as long as they both use
+        # the kind it serves — two cloned voices, or two described ones. Only a
+        # *mix* of the two kinds needs a second server.
         return 2 if self.speaker_mode == "duo" and len(self.speakers) >= 2 else 1
 
     def active_modes(self) -> list[str]:
@@ -198,6 +201,7 @@ class Settings(BaseSettings):
     def single_tts(self) -> bool:
         return len(self.live_endpoints()) <= 1
 
+
     def available_kinds(self) -> list[str]:
         return sorted({e.kind for e in self.live_endpoints()})
 
@@ -211,14 +215,29 @@ class Settings(BaseSettings):
         return self.endpoints_for_mode("caption")
 
     def seed_endpoints(self) -> list[TTSEndpoint]:
-        """Initial list, from the .env URLs or the local ports."""
-        ref = _split_urls(self.tts_ref_urls) or [f"http://127.0.0.1:{self.tts_ref_port}"]
-        caption = _split_urls(self.tts_caption_urls) or [
-            f"http://127.0.0.1:{self.tts_caption_port}"
-        ]
-        return [TTSEndpoint(url=u, kind="reference") for u in ref] + [
-            TTSEndpoint(url=u, kind="caption") for u in caption
-        ]
+        """Initial list: the local server, plus any remote ones from .env."""
+        local = TTSEndpoint(url=f"http://127.0.0.1:{self.tts_port}", kind=self.local_kind())
+        out = [local]
+        for url in _split_urls(self.tts_ref_urls):
+            out.append(TTSEndpoint(url=url, kind="reference"))
+        for url in _split_urls(self.tts_caption_urls):
+            out.append(TTSEndpoint(url=url, kind="caption"))
+        seen: set[str] = set()
+        return [e for e in out if not (e.url in seen or seen.add(e.url))]
+
+    def local_kind(self) -> str:
+        return "caption" if self.tts_kind == "caption" else "reference"
+
+    # --- voice display names ---
+
+    voice_labels: dict[str, str] = Field(default_factory=dict)
+    """voice_id -> what to show in the UI.
+
+    The TTS server only accepts ASCII ids, so a Japanese name cannot be the id
+    itself; it is kept here and displayed in its place."""
+
+    def label_for(self, voice_id: str) -> str:
+        return self.voice_labels.get(voice_id) or voice_id
 
     # --- long-term memory (memory-mcp over Streamable HTTP) ---
     mcp_enabled: bool = False
@@ -280,6 +299,7 @@ PERSISTED_FIELDS = (
     "mcp_enabled",
     "mcp_url",
     "ref_target_seconds",
+    "voice_labels",
 )
 MODEL_LIST_FIELDS = {"speakers": Speaker, "tts_endpoints": TTSEndpoint}
 

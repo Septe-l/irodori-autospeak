@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Stop the Irodori-TTS servers started by start_tts.sh
+# Stop the Irodori-TTS server started by start_tts.sh
 set -uo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$ROOT/_env.sh"
 
-for port in "$REF_PORT" "$CAPTION_PORT"; do
-  pidfile="$ROOT/logs/tts-$port.pid"
-  if [[ -f "$pidfile" ]] && kill "$(cat "$pidfile")" 2>/dev/null; then
-    echo "stopped :$port"
-    rm -f "$pidfile"
-  else
-    pkill -f "irodori_openai_tts.*--port $port" 2>/dev/null && echo "stopped :$port (by match)" \
-      || echo ":$port not running"
-    rm -f "$pidfile"
-  fi
-done
+pidfile="$ROOT/logs/tts-$TTS_PORT.pid"
+if [[ -f "$pidfile" ]] && kill "$(cat "$pidfile")" 2>/dev/null; then
+  echo "stopped :$TTS_PORT"
+elif pkill -f "irodori_openai_tts.*--port $TTS_PORT" 2>/dev/null; then
+  echo "stopped :$TTS_PORT (by match)"
+else
+  echo ":$TTS_PORT not running"
+fi
+rm -f "$pidfile"

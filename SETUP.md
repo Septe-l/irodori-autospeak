@@ -128,17 +128,13 @@ cd ~/Documents/Claude/irodori-autospeak
 
 ```ini
 AUTOSPEAK_HOST=0.0.0.0
-AUTOSPEAK_PORT=8000              # WebUI
-AUTOSPEAK_TTS_REF_PORT=8088      # 参照音声クローンのTTSサーバー
-AUTOSPEAK_TTS_CAPTION_PORT=8089  # VoiceDesignのTTSサーバー
+AUTOSPEAK_PORT=8000           # WebUI
+AUTOSPEAK_TTS_PORT=8088       # このマシンのTTS
+AUTOSPEAK_TTS_KIND=reference  # reference / caption
 ```
 
-TTSを他のMacにも分散させたいときだけ、URLを明示します。指定するとポート設定より
-優先されます。空のままなら上のポートのローカルサーバーが使われます。
-
-```ini
-AUTOSPEAK_TTS_REF_URLS=http://127.0.0.1:8088,http://192.168.1.13:8088
-```
+他のマシンのTTSは、WebUIの「設定 → TTSサーバー」で追加するのが基本です。
+`AUTOSPEAK_TTS_REF_URLS` / `AUTOSPEAK_TTS_CAPTION_URLS` は初回起動時の初期値にしかなりません。
 
 ```ini
 AUTOSPEAK_SEARXNG_URL=http://192.168.1.10:10000
@@ -156,17 +152,21 @@ AUTOSPEAK_TTS_CAPTION_URLS=http://127.0.0.1:8089
 ./run.sh
 ```
 
-TTSサーバー2つを立ち上げてから http://localhost:8000 を開きます。
+TTSサーバーを1つ立ち上げてから http://localhost:8000 を開きます。
 
-**初回はモデルのダウンロードで数分かかります。**2つのチェックポイントを取得します。
+**初回はモデルのダウンロードで数分かかります。**`AUTOSPEAK_TTS_KIND` で選んだほうを取得します。
 
-| ポート | チェックポイント | 用途 |
+| kind | チェックポイント | 用途 |
 |---|---|---|
-| 8088 | `Aratako/Irodori-TTS-500M-v3` | 参照音声のクローン |
-| 8089 | `Aratako/Irodori-TTS-600M-v3-VoiceDesign` | テキストで声を指定 |
+| `reference`（既定） | `Aratako/Irodori-TTS-500M-v3` | 参照音声のクローン |
+| `caption` | `Aratako/Irodori-TTS-600M-v3-VoiceDesign` | テキストで声を指定 |
 
 どちらもMITライセンス・非ゲートなのでHugging Faceのトークンは不要です。
-1サーバーは1チェックポイントしか保持できないため、両方使うにはこの2プロセス構成が必要です。
+
+**1台につきTTSは1つです。** 2つ載せると片方が合成していなくてもメモリとGPUを取り合い、
+約17%遅くなります。両方のチェックポイントを使いたい場合は2台目のマシンで
+`AUTOSPEAK_TTS_KIND=caption` を指定して `./run.sh --tts-only` を動かし、
+WebUIの「設定 → TTSサーバー」でそのアドレスを追加してください。
 
 2回目以降の起動は20秒ほどです。TTSだけ止めるときは `./stop_tts.sh`。
 
@@ -180,7 +180,8 @@ TTSサーバー2つを立ち上げてから http://localhost:8000 を開きま�
    - wav / flac / mp3 / m4a / ogg / opus / aac / webm に対応
    - wav・flac以外は自動でwavに変換されます
    - **10〜15秒程度の、雑音のないはっきりした音声**が向いています
-   - 長すぎるものは30秒で頭打ちになります
+   - 長い音声は開始位置と長さを指定して切り出せます（既定15秒）
+   - 名前は日本語でも構いません（「名前変更」で後から変えられます）
 4. **各話者のペルソナ** — 口調と性格を書く。声に出して読める文章だけを出させるための
    共通ルール（記号を使わない、視聴者コメントを捏造しない等）は初期値に入っています
 5. **num_steps** — 24が最適点。上げると品質は上がるが余裕がなくなります
@@ -257,8 +258,8 @@ TTS本体の取得（1.3GB）も行いません。
   `POST /v1/audio/voices` で全ての参照用エンドポイントへ配ります。TTSサーバーが複数ある
   場合は全台に配られます（片方にしか無いと、その台に当たった文で合成が失敗するため）。
 - **voice_id はASCII英数字・アンダースコア・ハイフンだけです。** TTSサーバー側の制約です。
-  日本語のファイル名でアップロードすると `voice_1a2b3c` のようなIDが自動生成され、
-  WebUIには「元のファイル名 → voice_1a2b3c」と表示されます。
+  日本語のファイル名でアップロードすると `voice_1a2b3c` のようなIDが自動生成されます。
+  表示名は別に持っているので、「名前変更」で日本語の名前を付けられます。
 - **音声変換は ffmpeg で行います。** macOSでは `afconvert`、Linuxコンテナでは `ffmpeg` を
   自動で使い分けます（イメージに同梱済み）。
 - 合成された音声はHTTPでWebUI側に届き、WebUI側の `audio_cache/` に置かれます。

@@ -285,13 +285,6 @@ async def _reconcile_speakers() -> list[str]:
     if not kinds:
         return ["TTSサーバーが1つも設定されていません。音声は生成されません。"]
 
-    if settings.single_tts() and settings.speaker_mode == "duo":
-        settings.speaker_mode = "solo"
-        notes.append(
-            "TTSサーバーが1台のため、話者モードを「1人」に固定しました。"
-            "2人交互にするにはTTSサーバーを2台にしてください。"
-        )
-
     # A speaker asking for a style no server holds would fail on every sentence.
     for i in range(settings.active_speaker_count()):
         sp = settings.speaker(i)
@@ -328,6 +321,27 @@ async def _reconcile_speakers() -> list[str]:
                     f"{sp.name} の参照音声「{sp.voice_id}」がありません。"
                     "参照音声をアップロードするか、声の指定方法をテキストにしてください。"
                 )
+
+    # Two speakers sharing one voice is legal but sounds like one person.
+    if settings.active_speaker_count() >= 2:
+        a, b = settings.speaker(0), settings.speaker(1)
+        same_ref = (
+            a.voice_mode == b.voice_mode == "reference" and a.voice_id == b.voice_id
+        )
+        same_caption = (
+            a.voice_mode == b.voice_mode == "caption"
+            and a.voice_caption.strip() == b.voice_caption.strip()
+        )
+        if same_ref:
+            notes.append(
+                f"{a.name} と {b.name} が同じ参照音声を使っています。"
+                "別の音声を割り当てないと2人が同じ声になります。"
+            )
+        elif same_caption:
+            notes.append(
+                f"{a.name} と {b.name} の声の説明が同じです。"
+                "説明を変えないと2人が同じ声になります。"
+            )
     return notes
 
 
@@ -339,7 +353,7 @@ async def options() -> dict:
         health[ep.url] = await engine.tts_client.health(ep.url)
     return {
         "models": models,
-        "voices": await voicelib.list_remote(settings.ref_endpoints()),
+        "voices": await _voice_list(),
         "tts_health": health,
     }
 
@@ -392,7 +406,7 @@ async def probe_mcp(body: ProbeBody) -> dict:
 
 @app.get("/api/voices")
 async def list_voices() -> dict:
-    return {"voices": await voicelib.list_remote(settings.ref_endpoints())}
+    return {"voices": await _voice_list()}
 
 
 @app.post("/api/voices")
@@ -428,50 +442,51 @@ async def upload_voice(
             "duration": round(duration, 1),
         },
         "endpoints": results,
-        "voices": await voicelib.list_remote(endpoints),
+        "voices": await _voice_list(),
     }
 
 
 @app.post("/api/voices/{voice_id}/rename")
 async def rename_voice(voice_id: str, body: RenameBody) -> dict:
-    """Re-upload under a new id, then drop the old one.
+    """Set the name shown for a voice.
 
-    The TTS server has no rename call and will not return a file's bytes, so the
-    locally cached copy of the converted wav is what makes this possible.
+    The TTS server only accepts ASCII ids, so a Japanese name cannot be the id
+    itself. Renaming therefore stores a display label here and leaves the id
+    alone — which also means it works for voices this machine never uploaded.
     """
-    new_id = voicelib.safe_stem(body.name)
-    if new_id == voice_id:
-        return {"id": voice_id, "voices": await voicelib.list_remote(settings.ref_endpoints())}
+    label = body.name.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="名前が空です")
+    if len(label) > 60:
+        raise HTTPException(status_code=400, detail="名前が長すぎます（60文字まで）")
 
-    cached = voicelib.cache_path(settings.voices_cache_dir, voice_id)
-    if not cached.is_file():
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                f"「{voice_id}」の元データがこの端末に残っていないため名前を変えられません。"
-                "アップロードし直してください。"
-            ),
-        )
+    available = {v["id"] for v in await voicelib.list_remote(settings.ref_endpoints())}
+    if voice_id not in available:
+        raise HTTPException(status_code=404, detail=f"参照音声が見つかりません: {voice_id}")
 
-    endpoints = settings.ref_endpoints()
-    data = cached.read_bytes()
-    try:
-        await voicelib.upload_remote(endpoints, new_id, f"{new_id}.wav", data)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+    clash = [vid for vid, name in settings.voice_labels.items()
+             if name == label and vid != voice_id]
+    if label in available and label != voice_id or clash:
+        raise HTTPException(status_code=409, detail=f"「{label}」は既に使われています")
 
-    voicelib.cache_put(settings.voices_cache_dir, new_id, data)
-    with contextlib.suppress(Exception):
-        await voicelib.delete_remote(endpoints, voice_id)
-    voicelib.cache_drop(settings.voices_cache_dir, voice_id)
-
-    # Any speaker still pointing at the old name would fail on every sentence.
-    for sp in settings.speakers:
-        if sp.voice_mode == "reference" and sp.voice_id == voice_id:
-            sp.voice_id = new_id
+    if label == voice_id:
+        settings.voice_labels.pop(voice_id, None)
+    else:
+        settings.voice_labels[voice_id] = label
     save_overrides(settings)
 
-    return {"id": new_id, "voices": await voicelib.list_remote(endpoints)}
+    return {
+        "id": voice_id,
+        "label": settings.label_for(voice_id),
+        "voices": await _voice_list(),
+    }
+
+
+async def _voice_list() -> list[dict]:
+    voices = await voicelib.list_remote(settings.ref_endpoints())
+    for v in voices:
+        v["label"] = settings.label_for(v["id"])
+    return voices
 
 
 @app.delete("/api/voices/{voice_id}")
@@ -486,13 +501,15 @@ async def delete_voice(voice_id: str) -> dict:
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     voicelib.cache_drop(settings.voices_cache_dir, voice_id)
+    settings.voice_labels.pop(voice_id, None)
+    save_overrides(settings)
     return {
         "deleted": voice_id,
         "endpoints": results,
         # Deleting a voice a speaker still points at is allowed, but synthesis
         # for that speaker will fail until it is pointed somewhere else.
         "in_use_by": in_use,
-        "voices": await voicelib.list_remote(endpoints),
+        "voices": await _voice_list(),
     }
 
 

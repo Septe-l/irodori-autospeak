@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# Start both Irodori-TTS servers in the background and wait for them to be ready.
-#   AUTOSPEAK_TTS_REF_PORT      Irodori-TTS-500M-v3           -> reference-audio cloning
-#   AUTOSPEAK_TTS_CAPTION_PORT  Irodori-TTS-600M-v3-VoiceDesign -> text-described voices
-# They stay up after this script exits. Stop them with ./stop_tts.sh
+# Start the Irodori-TTS server for this machine and wait for it to be ready.
+#
+# One machine runs one TTS server. A server holds exactly one checkpoint, and
+# two checkpoints on the same Mac fight over memory and GPU — measured at ~17%
+# slower even when only one of them is synthesizing. To use both voice styles at
+# once, run this on a second machine with AUTOSPEAK_TTS_KIND=caption and add its
+# address in the WebUI.
+#
+#   AUTOSPEAK_TTS_PORT   port to listen on               (default 8088)
+#   AUTOSPEAK_TTS_KIND   reference | caption             (default reference)
+#
+# Stays up after this script exits. Stop it with ./stop_tts.sh
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,6 +19,12 @@ source "$ROOT/_env.sh"
 TTS="$ROOT/vendor/Irodori-TTS-Server"
 TTS_REPO="https://github.com/Aratako/Irodori-TTS-Server.git"
 mkdir -p "$ROOT/logs"
+
+case "$TTS_KIND" in
+  reference) CHECKPOINT="Aratako/Irodori-TTS-500M-v3" ;;
+  caption)   CHECKPOINT="Aratako/Irodori-TTS-600M-v3-VoiceDesign" ;;
+  *) echo "AUTOSPEAK_TTS_KIND が不正です: '$TTS_KIND'（reference / caption）"; exit 2 ;;
+esac
 
 # Irodori-TTS-Server is not vendored into this repository — it stays an
 # independent clone so upstream fixes can be pulled with `git -C vendor/... pull`.
@@ -35,39 +49,31 @@ command -v git >/dev/null || { echo "git が必要です: brew install git"; exi
 command -v uv  >/dev/null || { echo "uv が必要です: brew install uv"; exit 1; }
 bootstrap_tts
 
-start_one() {
-  local port="$1" checkpoint="$2" name="$3"
-  if curl -sf --max-time 3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
-    echo "[$name] already running on :$port"
-    return 0
-  fi
-  echo "[$name] starting on :$port ($checkpoint)"
+if curl -sf --max-time 3 "http://127.0.0.1:$TTS_PORT/health" >/dev/null 2>&1; then
+  echo "[$TTS_KIND] already running on :$TTS_PORT"
+else
+  echo "[$TTS_KIND] starting on :$TTS_PORT ($CHECKPOINT)"
   PYTHONPATH="$TTS/src" \
   IRODORI_MODEL_DEVICE=mps \
   IRODORI_CODEC_DEVICE=mps \
   IRODORI_PRELOAD=true \
-  IRODORI_HF_CHECKPOINT="$checkpoint" \
+  IRODORI_HF_CHECKPOINT="$CHECKPOINT" \
   IRODORI_VOICES_DIR="$ROOT/voices" \
   nohup "$TTS/.venv/bin/python" -m irodori_openai_tts \
-      --host 0.0.0.0 --port "$port" \
-      >"$ROOT/logs/tts-$port.log" 2>&1 &
-  echo $! > "$ROOT/logs/tts-$port.pid"
-}
+      --host 0.0.0.0 --port "$TTS_PORT" \
+      >"$ROOT/logs/tts-$TTS_PORT.log" 2>&1 &
+  echo $! > "$ROOT/logs/tts-$TTS_PORT.pid"
+fi
 
-start_one "$REF_PORT"     "Aratako/Irodori-TTS-500M-v3"            "reference"
-start_one "$CAPTION_PORT" "Aratako/Irodori-TTS-600M-v3-VoiceDesign" "voicedesign"
-
-for port in "$REF_PORT" "$CAPTION_PORT"; do
-  printf "waiting for :%s " "$port"
-  for _ in $(seq 1 60); do
-    if curl -sf --max-time 3 "http://127.0.0.1:$port/health" >/dev/null 2>&1; then
-      echo "ready"
-      break
-    fi
-    printf "."
-    sleep 5
-  done
+printf "waiting for :%s " "$TTS_PORT"
+for _ in $(seq 1 60); do
+  if curl -sf --max-time 3 "http://127.0.0.1:$TTS_PORT/health" >/dev/null 2>&1; then
+    echo "ready"
+    break
+  fi
+  printf "."
+  sleep 5
 done
 
 echo
-echo "logs: $ROOT/logs/tts-$REF_PORT.log, $ROOT/logs/tts-$CAPTION_PORT.log"
+echo "log: $ROOT/logs/tts-$TTS_PORT.log"

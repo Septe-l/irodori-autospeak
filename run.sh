@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
 # Start the tool.
 #
-#   ./run.sh                 all-in-one: TTS servers + WebUI on this Mac (default)
-#   ./run.sh --webui-only    WebUI only; TTS runs on another machine
-#   ./run.sh --tts-only      TTS servers only; the WebUI runs elsewhere
+#   ./run.sh                 このMacでWebUIとTTS1つを起動（既定）
+#   ./run.sh --webui-only    WebUIだけ。TTSは別マシン
+#   ./run.sh --tts-only      TTSだけ。WebUIは別マシン
 #
-# The default can also be set in .env with AUTOSPEAK_MODE=all|webui|tts.
+# 1台につきTTSは1つです。参照音声とテキスト指定の両方を同時に使いたい場合は、
+# 2台目のMacで AUTOSPEAK_TTS_KIND=caption を指定して --tts-only を動かし、
+# そのアドレスをWebUIの「設定 → TTSサーバー」に追加してください。
+#
+# 既定モードは .env の AUTOSPEAK_MODE=all|webui|tts でも指定できます。
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -51,15 +55,15 @@ start_webui() {
     --host "$WEBUI_HOST" --port "$WEBUI_PORT" --app-dir "$ROOT"
 }
 
-# In webui mode nothing local would answer on the default loopback endpoints, so
+# In webui mode nothing local would answer on the default loopback endpoint, so
 # an unset URL is a configuration mistake rather than a working default.
 check_remote_tts() {
-  if [[ -z "$REF_URLS" || -z "$CAPTION_URLS" ]]; then
+  if [[ -z "$REF_URLS" && -z "$CAPTION_URLS" ]]; then
     cat >&2 <<EOF
 --webui-only では TTS の接続先を .env に書いてください。空だと127.0.0.1を見にいきます。
 
-  AUTOSPEAK_TTS_REF_URLS=http://<TTSのホスト>:$REF_PORT
-  AUTOSPEAK_TTS_CAPTION_URLS=http://<TTSのホスト>:$CAPTION_PORT
+  AUTOSPEAK_TTS_REF_URLS=http://<参照音声TTSのホスト>:$TTS_PORT
+  AUTOSPEAK_TTS_CAPTION_URLS=http://<テキスト指定TTSのホスト>:$TTS_PORT
 EOF
     exit 2
   fi
@@ -88,7 +92,7 @@ case "$MODE" in
   tts)
     "$ROOT/start_tts.sh"
     echo
-    echo "TTSのみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
+    echo "TTS（$TTS_KIND）のみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
     echo "停止: ./stop_tts.sh"
     ;;
   webui)
