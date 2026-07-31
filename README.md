@@ -1,73 +1,95 @@
-<!--
-  README はリポジトリの顔なので、ここはあなたの言葉で書いてください。
-  骨組みとリンクだけ置いてあります。<!-- --> のコメントは書き終えたら消してOK。
-  詳しい説明は docs/ にあるので、ここには書かなくて大丈夫です。
--->
-
 # Irodori AutoSpeak
 
-<!-- 1〜3行。これが何をするツールなのかを、初めて見た人に向けて。
-     例）話題を投げると、自分で調べながら延々と喋り続けてくれるツール。 -->
+## 概要
 
+このツールは、Irodori-TTS-Server(TTSサーバー)・SearXNG(Web検索エンジン)・Simple-Memory-MCP(長期記憶HTTP MCPサーバー)と連携し、「記憶とWeb検索データとユーザーが与えた話題をもとに、永遠に喋り続ける」ものです。
 
-## できること
+作業中の暇潰しにラジオ感覚で流せるツールを目指しました。
 
-<!-- 箇条書きで3〜6個。作った動機や「ここが気に入っている」を混ぜると読ませる文になります。 -->
+このREADMEを除く全てはClaude Codeで書かれています。
 
--
--
--
+## クイックスタート
 
-
-## デモ
-
-<!-- 任意。スクリーンショットや音声サンプルがあると一番伝わります。
-     画像は docs/images/ などに置いて ![説明](docs/images/xxx.png) で貼れます。
-     ※ 参照音声そのものはコミットしないこと（voices/ は .gitignore 済み） -->
-
-
-## 必要なもの
-
-- macOS (Apple Silicon) — 音声合成に MPS を使います
-- [SearXNG](https://github.com/searxng/searxng) — Web検索
-- [LM Studio](https://lmstudio.ai) — 文章生成
-- [Irodori-TTS-Server](https://github.com/Aratako/Irodori-TTS-Server) — 音声合成（初回起動時に自動で取得）
-
-## 使い方
+まずは実行するMacでGit Cloneを行います。以後、使用するモードに合わせて選択します。
 
 ```bash
 git clone https://github.com/Septe-l/irodori-autospeak.git
 cd irodori-autospeak
+```
+
+### WebUI + Single TTSモード(デフォルト)
+
+デフォルト。WebUIとTTSを同一のMacで動かすモードです。リアルタイムで処理するには、ある程度の性能を備えたAppleシリコンが必要です(M1Max/24Core/32GBでリアルタイム再生ができることを検証しています)
+
+```bash
 ./run.sh
 ```
 
-http://localhost:8000 を開いて、話題を入力してください。
+http://localhost:8000 が開きます。初回は仮想環境の構築とモデルの取得で数分かかります。
 
-初回はモデルの取得で数分かかります。詳しい手順は **[docs/SETUP.md](docs/SETUP.md)**。
+### WebUIモード
+
+TTSは別のマシンに任せて、WebUIのみを実行するモードです。別にTTSを動かせるマシンがあり、WebUIをロースペックのマシンで実行する場合に選択します。
+
+```bash
+cp .env.example .env
+$EDITOR .env    # AUTOSPEAK_TTS_REF_URLS に TTS を動かすマシンのアドレスを書く
+./run.sh --webui-only
+```
+
+接続先が未設定のまま実行すると、その場で止まって必要な設定を表示します。
+
+### オプション:WebUIモードをDockerで起動する
+
+WebUIモードはDockerで実行することもできます。Linuxにも対応しています。
+
+```bash
+cd docker
+cp .env.example .env
+$EDITOR .env                  # 各サービスのアドレスを書く（127.0.0.1は不可）
+docker compose up -d --build
+```
+
+### Single TTS サーバーモード
+
+WebUIに接続可能なTTSのみを実行します。WebUIモードとの組み合わせや、2つのTTSを組み合わせる場合に使用します。
+
+```bash
+./run.sh --tts-only
+```
+
+2台目として、テキスト指示で声を作るTTSを動かす場合は、実行前に種類を指定します。
+
+```bash
+cp .env.example .env
+$EDITOR .env    # AUTOSPEAK_TTS_KIND=caption にする
+./run.sh --tts-only
+```
+
+---
+
+補足:これらに加えてLM StudioでのLLMが必要になり、Simple-Memory-MCPと連携する場合はEmbeddingモデルも必要になるため、大きなモデルで実行する場合には莫大なメモリを消費します。最低でも32GB以上のユニファイドメモリを備えたMacを使用するか、メモリに見合った小さなLLMを使用し、複数台のMacでメモリ負荷を分散させることを検討してください。
+
+## 仕組み
+
+Irodori-TTS-Serverを音声生成として活用し、LM StudioのLLMをテキスト生成として活用します。
+
+ユーザーの入力文を元にSearXNGで検索し、得た情報をLM Studioでテキスト処理した後にIrodori-TTS-Serverで音声も生成、WebUIで再生します。
+
+喋る内容はプロンプトで変更可能なほか、サンプル音声やテキスト指示を用いた声質の調整も可能です。
 
 ## ドキュメント
 
 | | |
 |---|---|
 | [仕組みと設定](docs/ARCHITECTURE.md) | 内部構成、設定項目、合成速度の実測値 |
-| [環境構築](docs/SETUP.md) | ゼロから動かすまでの手順 |
+| [環境構築](docs/SETUP.md) | SearXNG・LM Studio を含めたゼロからの手順 |
 | [Docker](docs/DOCKER.md) | WebUIを別マシンのコンテナで動かす |
 
 ## 参照音声について
 
-このツールは参照音声から声を複製します。**自分が権利を持っている音声か、本人から許諾を
-得た音声だけを使ってください。** 他人の声を無断で複製して公開・配信する行為は、法的にも
-倫理的にも問題になりえます。ツール側で用途を判別する手段はないので、利用者の責任になります。
+このツールは参照音声から声を複製します。自分が権利を持っている音声か、本人から許諾を得た音声だけを使ってください。
 
 ## ライセンス
 
-MIT License（[LICENSE](LICENSE)）
-
-依存する [Irodori-TTS-Server](https://github.com/Aratako/Irodori-TTS-Server) は同梱しておらず、
-初回起動時に別リポジトリとして取得します（同じくMIT）。モデルの重みは Hugging Face 側で
-別途ライセンスされているので、各モデルカードを確認してください。
-
-## 開発について
-
-このツールの実装とドキュメントの多くは、[Claude](https://claude.ai)（Anthropic）との
-共同作業で書かれています。
+このプログラムはMITライセンスの下でリリースされています。
