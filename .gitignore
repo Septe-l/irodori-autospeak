@@ -1,0 +1,16 @@
+.venv/
+vendor/
+__pycache__/
+*.egg-info/
+.env
+audio_cache/
+logs/
+samples/
+bench_*.json
+.DS_Store
+settings.local.json
+docker/.env
+docker/data/
+docker/logs/
+voices_cache/
+voices/

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Irodori AutoSpeak</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">Irodori AutoSpeak</div>
+    <div class="stats">
+      <span class="chip" id="chip-status">idle</span>
+      <span class="chip" id="chip-mode">1人</span>
+      <span class="chip" id="chip-buffer">buffer 0.0s</span>
+      <span class="chip" id="chip-turns">先読み 0</span>
+      <span class="chip" id="chip-queue">TTS 0</span>
+    </div>
+    <button id="btn-clear" class="ghost" type="button">クリア</button>
+    <button id="btn-settings" class="ghost" type="button">設定</button>
+  </header>
+
+  <main id="log" class="log">
+    <div class="empty" id="empty">話題を入力すると、調べながら喋り続けます。</div>
+  </main>
+
+  <div id="now" class="now" hidden>
+    <span class="now-label" id="now-speaker">再生中</span>
+    <span id="now-text"></span>
+  </div>
+
+  <form class="composer" id="composer">
+    <input id="topic" type="text" autocomplete="off" placeholder="話題を入力（喋っている最中でも投げられます）">
+    <button type="submit" id="btn-send">送る</button>
+    <button type="button" id="btn-stop" class="danger">停止</button>
+    <button type="button" id="btn-resume" class="ghost" disabled>再開</button>
+  </form>
+</div>
+
+<aside id="panel" class="panel" hidden>
+  <div class="panel-head">
+    <strong>設定</strong>
+    <button id="btn-close" class="ghost" type="button">閉じる</button>
+  </div>
+  <div class="panel-body">
+    <label>LLMモデル
+      <select id="set-model"></select>
+    </label>
+
+    <div class="tts-block">
+      <div class="tts-head">
+        <strong>Web検索（SearXNG）</strong>
+        <label class="toggle"><input id="set-search-on" type="checkbox"> 使う</label>
+      </div>
+      <div class="conn-row">
+        <input id="set-searxng" type="text" placeholder="http://127.0.0.1:10000">
+        <button id="btn-test-search" class="tts-test" type="button">接続</button>
+      </div>
+      <div id="search-status" class="tts-status"></div>
+      <p class="hint">オフにすると検索せず、LLMの知識（と長期記憶）だけで話します。</p>
+    </div>
+
+    <div class="tts-block">
+      <div class="tts-head">
+        <strong>長期記憶（MCP）</strong>
+        <label class="toggle"><input id="set-mcp-on" type="checkbox"> 使う</label>
+      </div>
+      <div class="conn-row">
+        <input id="set-mcp-url" type="text" placeholder="http://127.0.0.1:8080/mcp">
+        <button id="btn-test-mcp" class="tts-test" type="button">接続</button>
+      </div>
+      <div id="mcp-status" class="tts-status"></div>
+      <p class="hint">memory-mcp から記憶を読み取り、話す内容に反映します（書き込みはしません）。</p>
+    </div>
+
+    <div class="tts-block">
+      <div class="tts-head">
+        <strong>TTSサーバー</strong>
+        <button id="btn-add-tts" class="ghost small" type="button">＋ 追加</button>
+      </div>
+      <div id="tts-list"></div>
+      <p class="hint" id="tts-note"></p>
+    </div>
+
+    <label>話者モード
+      <select id="set-speakermode">
+        <option value="solo">1人で喋る</option>
+        <option value="duo">2人が交互に喋る</option>
+      </select>
+    </label>
+
+    <div id="speakers"></div>
+
+    <details class="voices">
+      <summary>参照音声の管理</summary>
+      <div class="voices-body">
+        <div id="voice-list" class="voice-list"></div>
+        <div class="upload">
+          <span class="upload-caption">音声ファイルを追加</span>
+          <label>名前（省略するとファイル名から作ります）
+            <input id="voice-name" type="text" placeholder="megu_ref">
+          </label>
+          <div class="row">
+            <label>開始位置（秒）<input id="voice-start" type="number" min="0" step="0.5" value="0"></label>
+            <label>長さ（秒）<input id="voice-len" type="number" min="3" max="30" step="1" value="15"></label>
+          </div>
+          <label class="upload-btn" for="voice-file">音声ファイルを選択…</label>
+          <input id="voice-file" type="file" class="visually-hidden"
+                 accept=".wav,.flac,.mp3,.m4a,.ogg,.opus,.aac,.webm,audio/*">
+          <span class="hint">
+            wav / flac / mp3 / m4a / ogg / opus / aac / webm。
+            長い音声は指定した位置から指定した長さだけ切り出します。雑音のない10〜15秒が向いています。
+          </span>
+        </div>
+        <div id="voice-msg" class="hint"></div>
+      </div>
+    </details>
+
+    <div class="row">
+      <label>num_steps<input id="set-steps" type="number" min="4" max="80" step="1"></label>
+      <label>話速<input id="set-speed" type="number" min="0.25" max="4" step="0.05"></label>
+    </div>
+    <div class="row">
+      <label>先読みターン<input id="set-turns" type="number" min="1" max="12" step="1"></label>
+      <label>先読み秒数<input id="set-secs" type="number" min="10" max="600" step="10"></label>
+    </div>
+    <label>temperature<input id="set-temp" type="number" min="0" max="2" step="0.05"></label>
+
+    <div id="health" class="health"></div>
+    <button id="btn-save" type="button">保存</button>
+    <p class="hint" id="save-msg"></p>
+    <p class="hint">設定は次に生成するターンから反映されます。再生中の音声には影響しません。</p>
+  </div>
+</aside>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

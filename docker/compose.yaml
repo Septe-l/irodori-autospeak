@@ -1,0 +1,39 @@
+# WebUI only. The Irodori-TTS servers run on a Mac (./run.sh --tts-only) and are
+# reached over the LAN, so nothing here needs a GPU.
+#
+#   cd docker && cp .env.example .env && $EDITOR .env
+#   docker compose up -d --build
+#
+# The build context is the project root, one level up — the image needs
+# backend/ and static/ from there.
+#
+# Every URL below must be reachable *from inside the container*, so none of them
+# may be 127.0.0.1 unless that service runs in this same container.
+
+services:
+  webui:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: irodori-autospeak:latest
+    container_name: irodori-autospeak
+    restart: unless-stopped
+    ports:
+      - "${AUTOSPEAK_PORT:-8000}:8000"
+    environment:
+      # The container never runs TTS, so the endpoints below must be remote.
+      AUTOSPEAK_MODE: "webui"
+      AUTOSPEAK_SEARXNG_URL: "${AUTOSPEAK_SEARXNG_URL:?set this in docker/.env}"
+      AUTOSPEAK_LLM_URL: "${AUTOSPEAK_LLM_URL:?set this in docker/.env}"
+      AUTOSPEAK_LLM_MODEL: "${AUTOSPEAK_LLM_MODEL:-gemma-4-26b-a4b-it-mlx}"
+      # Seeds the endpoint list on first run only; after that it is edited in
+      # the WebUI and kept in data/settings.local.json.
+      AUTOSPEAK_TTS_REF_URLS: "${AUTOSPEAK_TTS_REF_URLS:?set this in docker/.env}"
+      AUTOSPEAK_TTS_CAPTION_URLS: "${AUTOSPEAK_TTS_CAPTION_URLS-}"
+      AUTOSPEAK_TTS_NUM_STEPS: "${AUTOSPEAK_TTS_NUM_STEPS:-24}"
+      AUTOSPEAK_PREFETCH_TURNS: "${AUTOSPEAK_PREFETCH_TURNS:-4}"
+      AUTOSPEAK_PREFETCH_SECONDS: "${AUTOSPEAK_PREFETCH_SECONDS:-90}"
+    volumes:
+      # Spoken transcripts, and the settings edited in the WebUI.
+      - ./logs:/app/logs
+      - ./data:/app/data
