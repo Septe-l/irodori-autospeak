@@ -1,5 +1,8 @@
 # ゼロから環境を作る手順
 
+> [README](../README.md) ・ [仕組みと設定](ARCHITECTURE.md) ・ [環境構築](SETUP.md) ・ [Docker](DOCKER.md)
+
+
 このツールは3つの外部サービスに依存します。**SearXNG（検索）**、**LM Studio（文章生成）**、
 **Irodori-TTS-Server（音声合成）**。この3つを用意してから本体を入れます。
 
@@ -220,7 +223,7 @@ TTSサーバーはGPU（またはApple MPS）が要るので、Macに残した�
            └──▶ LM Studio
 ```
 
-Docker一式は `docker/` にまとまっています。詳細は [docker/README.md](docker/README.md)。
+Docker一式は `docker/` にまとまっています。詳細は [DOCKER.md](DOCKER.md)。
 
 ```bash
 cd docker

@@ -1,5 +1,8 @@
 # WebUI をDockerで動かす
 
+> [README](../README.md) ・ [仕組みと設定](ARCHITECTURE.md) ・ [環境構築](SETUP.md) ・ [Docker](DOCKER.md)
+
+
 WebUIはHTTPクライアントとFastAPIだけで、モデルもGPUも使いません。x86 Linuxでも動きます。
 TTSサーバーはGPU（Apple MPS）が要るのでMacに残し、LAN越しに使います。
 
