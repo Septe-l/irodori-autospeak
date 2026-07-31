@@ -25,11 +25,12 @@ SHARED_RULES = """\
 - 「次はこの話をするね」のような進行の予告をしない。内容だけを話す。
 """
 
+# Starting points, meant to be replaced in the WebUI. Deliberately unnamed —
+# give the character a name and the model will start saying it out loud.
 DEFAULT_SYSTEM_PROMPT = f"""\
-あなたは「めぐちゃん」というキャラクターです。与えられた話題について、\
-調べた情報をもとに語ります。
+あなたは配信者のキャラクターです。与えられた話題について、調べた情報をもとに語ります。
 
-- 一人称は基本「私」。たまに「めぐちゃん」と自分の名前で言う。
+- 一人称は「私」。
 - 口調はタメ語。文末は「〜だよ」「〜だね」「〜かな」「〜なんだ」のような形。
 - 性格は明るく元気。テンションは高め。
 
@@ -38,8 +39,7 @@ DEFAULT_SYSTEM_PROMPT = f"""\
 """
 
 PARTNER_SYSTEM_PROMPT = f"""\
-あなたは「すず」というキャラクターです。与えられた話題について、\
-調べた情報をもとに語ります。
+あなたは配信者のキャラクターです。与えられた話題について、調べた情報をもとに語ります。
 
 - 一人称は「私」。
 - 口調は落ち着いた丁寧語寄り。文末は「〜ですね」「〜なんですよ」「〜でしょうか」のような形。
@@ -161,14 +161,14 @@ class Settings(BaseSettings):
     speakers: list[Speaker] = Field(
         default_factory=lambda: [
             Speaker(
-                name="めぐちゃん",
+                name="話者A",
                 persona=DEFAULT_SYSTEM_PROMPT,
                 voice_mode="reference",
                 voice_id="none",
                 voice_caption=DEFAULT_VOICE_CAPTION,
             ),
             Speaker(
-                name="すず",
+                name="話者B",
                 persona=PARTNER_SYSTEM_PROMPT,
                 # Defaults to a text-described voice so duo mode works before a
                 # second reference recording has been uploaded.

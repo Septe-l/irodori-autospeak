@@ -37,8 +37,8 @@ def safe_stem(name: str) -> str:
     stem = UNSAFE.sub("_", Path(name).stem.strip()).strip("_")[:48]
     if stem:
         return stem
-    # Nothing ASCII survived (e.g. "慈.m4a"). Fall back to a stable-looking
-    # generated id; the original filename is reported back to the user.
+    # Nothing ASCII survived (e.g. a filename written only in Japanese). Fall
+    # back to a generated id; the original filename is reported back to the user.
     digest = hashlib.sha1(name.encode("utf-8")).hexdigest()[:6]
     return f"voice_{digest}"
 
