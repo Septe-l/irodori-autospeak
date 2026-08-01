@@ -448,6 +448,16 @@ class Engine:
             turn.text_complete = True
             self.emit("turn_timing", turn_id=turn.id, **turn.timing())
 
+        if not turn.sentences and epoch == self.epoch:
+            # Reasoning models can spend the whole token budget thinking and
+            # return nothing, which would otherwise just look like a skipped turn.
+            self.last_error = (
+                "LLMが本文を返しませんでした。"
+                "reasoning_effort を下げるか max_tokens を増やしてください。"
+            )
+            logger.warning("turn %d produced no text", turn.id)
+            self.emit("error", message=self.last_error)
+
         if epoch == self.epoch and not turn.dropped:
             self.transcript.write_turn(
                 turn_id=turn.id, topic=turn.topic, subtopic=turn.subtopic,

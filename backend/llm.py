@@ -183,6 +183,8 @@ class LLMClient:
             "max_tokens": self.s.llm_max_tokens if max_tokens is None else max_tokens,
             "stream": True,
         }
+        if self.s.llm_reasoning_effort:
+            payload["reasoning_effort"] = self.s.llm_reasoning_effort
         async with httpx.AsyncClient(timeout=self.s.llm_timeout) as client:
             async with client.stream(
                 "POST", f"{self.s.llm_url}/v1/chat/completions", json=payload

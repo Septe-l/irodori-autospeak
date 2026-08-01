@@ -116,9 +116,11 @@ class Settings(BaseSettings):
     searxng_url: str = "http://127.0.0.1:10000"
     search_results: int = 6
     """How many SearXNG hits to consider."""
-    search_fetch_pages: int = 3
-    """How many of those hits to download and extract article text from."""
-    search_page_chars: int = 2500
+    search_fetch_pages: int = 2
+    """How many of those hits to download and extract article text from.
+    Every page lands in the prompt, and prompt length is most of the LLM's GPU
+    work — which the TTS is competing for when both run on one machine."""
+    search_page_chars: int = 1200
     """Per-page cap on extracted characters handed to the LLM."""
     search_timeout: float = 20.0
     search_language: str = "ja"
@@ -131,6 +133,12 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.85
     llm_max_tokens: int = 700
     llm_timeout: float = 180.0
+
+    llm_reasoning_effort: str = "low"
+    """For reasoning models (gpt-oss and the like). Their thinking is spent out of
+    the same token budget as the answer, and at 'high' a turn can burn the whole
+    budget and produce no speech at all. Non-reasoning models ignore the field.
+    Set to "" to omit it entirely."""
 
     # --- Irodori-TTS ---
     # One machine runs one TTS server. Two checkpoints on the same Mac fight for
@@ -152,7 +160,7 @@ class Settings(BaseSettings):
     tts_endpoints: list[TTSEndpoint] = Field(default_factory=list)
     """The live list. Empty means "derive it from the *_urls/*_port settings"."""
     tts_timeout: float = 180.0
-    tts_num_steps: int = 24
+    tts_num_steps: int = 20
     tts_speed: float = 1.0
 
     speaker_mode: str = "solo"
@@ -252,10 +260,16 @@ class Settings(BaseSettings):
     sample; a long one mostly adds noise and encoding time."""
 
     # --- pacing ---
-    prefetch_turns: int = 4
+    prefetch_turns: int = 8
     """Stop generating new turns once this many un-played turns are buffered."""
-    prefetch_seconds: float = 90.0
-    """...or once this much un-played audio is buffered, whichever comes first."""
+    prefetch_seconds: float = 240.0
+    """...or once this much un-played audio is buffered, whichever comes first.
+
+    Depth matters more than it looks when the LLM and TTS share one GPU: until
+    the buffer fills, the LLM never pauses, so it competes for the GPU without
+    let-up and synthesis runs ~2.6x slower. Once the buffer does fill the LLM
+    idles, the TTS gets the GPU to itself, and the system settles into a stable
+    loop. A shallow buffer never reaches that point."""
     max_sentence_chars: int = 60
     """Sentences longer than this get split further, at commas if possible."""
     min_sentence_chars: int = 6
@@ -287,6 +301,7 @@ OVERRIDES_PATH = Path(
 PERSISTED_FIELDS = (
     "llm_url",
     "llm_model",
+    "llm_reasoning_effort",
     "llm_temperature",
     "speaker_mode",
     "speakers",
@@ -297,6 +312,8 @@ PERSISTED_FIELDS = (
     "prefetch_seconds",
     "search_enabled",
     "searxng_url",
+    "search_fetch_pages",
+    "search_page_chars",
     "mcp_enabled",
     "mcp_url",
     "ref_target_seconds",

@@ -64,11 +64,14 @@ class RenameBody(BaseModel):
 class SettingsBody(BaseModel):
     llm_url: str | None = None
     llm_model: str | None = None
+    llm_reasoning_effort: str | None = None
     speaker_mode: str | None = None
     speakers: list[SpeakerBody] | None = None
     tts_endpoints: list[EndpointBody] | None = None
     search_enabled: bool | None = None
     searxng_url: str | None = None
+    search_fetch_pages: int | None = None
+    search_page_chars: int | None = None
     mcp_enabled: bool | None = None
     mcp_url: str | None = None
     ref_target_seconds: float | None = None
@@ -197,12 +200,15 @@ async def read_settings() -> dict:
     return {
         "llm_url": settings.llm_url,
         "llm_model": settings.llm_model,
+        "llm_reasoning_effort": settings.llm_reasoning_effort,
         "speaker_mode": settings.speaker_mode,
         "speakers": [sp.model_dump() for sp in settings.speakers],
         "tts_endpoints": [e.model_dump() for e in settings.tts_endpoints],
         "single_tts": settings.single_tts(),
         "available_kinds": settings.available_kinds(),
         "search_enabled": settings.search_enabled,
+        "search_fetch_pages": settings.search_fetch_pages,
+        "search_page_chars": settings.search_page_chars,
         "mcp_enabled": settings.mcp_enabled,
         "mcp_url": settings.mcp_url,
         "ref_target_seconds": settings.ref_target_seconds,
@@ -225,6 +231,9 @@ async def write_settings(body: SettingsBody) -> dict:
         settings.llm_url = _normalize_url(body.llm_url) or settings.llm_url
     if body.llm_model is not None:
         settings.llm_model = body.llm_model
+    if body.llm_reasoning_effort is not None:
+        effort = body.llm_reasoning_effort.strip()
+        settings.llm_reasoning_effort = effort if effort in ("low", "medium", "high") else ""
     if body.speaker_mode in ("solo", "duo"):
         settings.speaker_mode = body.speaker_mode
     if body.tts_endpoints is not None:
@@ -251,7 +260,11 @@ async def write_settings(body: SettingsBody) -> dict:
     if body.search_enabled is not None:
         settings.search_enabled = body.search_enabled
     if body.searxng_url is not None:
-        settings.searxng_url = body.searxng_url.strip().rstrip("/")
+        settings.searxng_url = _normalize_url(body.searxng_url) or settings.searxng_url
+    if body.search_fetch_pages is not None:
+        settings.search_fetch_pages = max(0, min(6, body.search_fetch_pages))
+    if body.search_page_chars is not None:
+        settings.search_page_chars = max(300, min(5000, body.search_page_chars))
     if body.mcp_enabled is not None:
         settings.mcp_enabled = body.mcp_enabled
     if body.mcp_url is not None:

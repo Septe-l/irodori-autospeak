@@ -54,6 +54,14 @@
       <label>モデル
         <select id="set-model"></select>
       </label>
+      <label>思考の深さ（Thinkingモデルのみ）
+        <select id="set-effort">
+          <option value="low">low（速い・推奨）</option>
+          <option value="medium">medium</option>
+          <option value="high">high（本文が出ないことがある）</option>
+          <option value="">指定しない</option>
+        </select>
+      </label>
       <p class="hint">別マシンのLM Studioを使う場合は、Server設定で「Serve on Local Network」を有効にしてください。</p>
     </div>
 
@@ -67,7 +75,15 @@
         <button id="btn-test-search" class="tts-test" type="button">接続</button>
       </div>
       <div id="search-status" class="tts-status"></div>
-      <p class="hint">オフにすると検索せず、LLMの知識（と長期記憶）だけで話します。</p>
+      <div class="row">
+        <label>本文を取る件数<input id="set-pages" type="number" min="0" max="6" step="1"></label>
+        <label>1件あたりの文字数<input id="set-pagechars" type="number" min="300" max="5000" step="100"></label>
+      </div>
+      <p class="hint">
+        オフにすると検索せず、LLMの知識（と長期記憶）だけで話します。
+        取る件数を増やすと内容は厚くなりますが、そのぶんLLMの処理が重くなります。
+        LLMとTTSを同じMacで動かしている場合は2件程度が目安です。
+      </p>
     </div>
 
     <div class="tts-block">

@@ -673,6 +673,7 @@
 
     fillModels(opt.models, cfg.llm_model);
     $("set-llm-url").value = cfg.llm_url || "";
+    $("set-effort").value = cfg.llm_reasoning_effort || "";
     $("llm-status").textContent = "";
 
     $("set-speakermode").value = cfg.speaker_mode;
@@ -683,6 +684,8 @@
 
     $("set-search-on").checked = cfg.search_enabled;
     $("set-searxng").value = cfg.searxng_url || "";
+    $("set-pages").value = cfg.search_fetch_pages;
+    $("set-pagechars").value = cfg.search_page_chars;
     $("set-mcp-on").checked = cfg.mcp_enabled;
     $("set-mcp-url").value = cfg.mcp_url || "";
     $("search-status").textContent = "";
@@ -718,11 +721,14 @@
       body: JSON.stringify({
         llm_url: $("set-llm-url").value.trim(),
         llm_model: $("set-model").value,
+        llm_reasoning_effort: $("set-effort").value,
         speaker_mode: $("set-speakermode").value,
         speakers,
         tts_endpoints: collectEndpoints(),
         search_enabled: $("set-search-on").checked,
         searxng_url: $("set-searxng").value.trim(),
+        search_fetch_pages: Number($("set-pages").value),
+        search_page_chars: Number($("set-pagechars").value),
         mcp_enabled: $("set-mcp-on").checked,
         mcp_url: $("set-mcp-url").value.trim(),
         ref_target_seconds: Number($("voice-len").value || 15),
