@@ -92,6 +92,29 @@ async def index() -> FileResponse:
     )
 
 
+@app.get("/sw.js")
+async def service_worker() -> FileResponse:
+    """Served from the origin root on purpose.
+
+    A service worker can only control paths at or below its own URL, so one
+    delivered from /static/ could not manage the app shell at "/".
+    """
+    return FileResponse(
+        STATIC_DIR / "sw.js",
+        media_type="text/javascript",
+        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/manifest.webmanifest")
+async def manifest() -> FileResponse:
+    return FileResponse(
+        STATIC_DIR / "manifest.webmanifest",
+        media_type="application/manifest+json",
+        headers={"Cache-Control": "no-cache"},
+    )
+
+
 @app.get("/events")
 async def events() -> StreamingResponse:
     queue = engine.subscribe()

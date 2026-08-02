@@ -2,8 +2,23 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- viewport-fit=cover lets the layout reach under the notch and home
+     indicator; style.css pays that back with safe-area padding. -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Irodori AutoSpeak</title>
+
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#1c1f25">
+<meta name="color-scheme" content="dark">
+
+<!-- iOS ignores the manifest for home-screen launches and reads these instead.
+     This path also works over plain HTTP, unlike service-worker installation. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AutoSpeak">
+<link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+<link rel="icon" href="/static/icons/icon-192.png" type="image/png">
+
 <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>

@@ -753,6 +753,16 @@
     $("panel").hidden = true;
   });
 
+  // Service workers need a secure context. localhost counts; a plain-HTTP LAN
+  // address does not, and there the registration would only throw. Adding the
+  // page to an iOS home screen still launches standalone without one.
+  if ("serviceWorker" in navigator && window.isSecureContext) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js")
+        .catch((e) => console.warn("service worker registration failed", e));
+    });
+  }
+
   // The log starts empty on every load; the SSE stream fills it from here on.
   connect();
 })();

@@ -25,7 +25,17 @@ body {
   line-height: 1.7;
 }
 
-.app { display: flex; flex-direction: column; height: 100vh; }
+/* dvh tracks the shrinking viewport when mobile browser chrome hides; vh is the
+   fallback for anything that does not support it. */
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+/* Launched from the home screen the layout runs edge to edge, so the header
+   must clear the status bar and the composer must clear the home indicator. */
+.bar { padding-top: calc(10px + env(safe-area-inset-top)); }
+.composer { padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.bar, .composer { padding-left: calc(16px + env(safe-area-inset-left));
+                  padding-right: calc(16px + env(safe-area-inset-right)); }
+.panel { padding-top: env(safe-area-inset-top); }
 
 .bar {
   display: flex; align-items: center; gap: 12px;
@@ -94,6 +104,8 @@ button {
   background: var(--accent); color: #06212f; border: 0;
   border-radius: 8px; padding: 10px 16px; font-size: 14px;
   font-weight: 600; cursor: pointer; font-family: inherit;
+  /* Without this a narrow toolbar breaks Japanese labels one glyph per line. */
+  white-space: nowrap;
 }
 button:hover { filter: brightness(1.1); }
 button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--line); }
@@ -187,6 +199,32 @@ button.small { padding: 4px 10px; font-size: 12px; }
   font-size: 13px; color: var(--muted); cursor: pointer;
 }
 .toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* --- phone layout (this is the shape the PWA is used in) --- */
+@media (max-width: 640px) {
+  .bar { flex-wrap: wrap; gap: 6px 8px; padding: 8px 12px;
+         padding-top: calc(8px + env(safe-area-inset-top)); }
+  .brand { font-size: 15px; }
+  /* The chips get their own row and scroll sideways rather than stacking. */
+  .stats { order: 3; width: 100%; margin-left: 0;
+           flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .stats::-webkit-scrollbar { display: none; }
+  .chip { font-size: 11px; padding: 2px 8px; }
+  .bar button { padding: 7px 12px; font-size: 13px; }
+
+  .log { padding: 14px 12px 6px; }
+  .turn { padding-left: 10px; }
+  .turn-head { flex-wrap: wrap; }
+  .turn-time { margin-left: 0; width: 100%; }
+
+  .composer { flex-wrap: wrap; gap: 8px; padding: 10px 12px;
+              padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .composer input { flex: 1 0 100%; font-size: 16px; }  /* 16px stops iOS zooming on focus */
+  .composer button { flex: 1; }
+
+  .now { font-size: 15px; padding: 8px 12px; }
+  .panel { width: 100%; }
+}
 
 /* --- user messages and per-turn timings --- */
 .usermsg {
