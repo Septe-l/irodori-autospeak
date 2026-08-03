@@ -5,9 +5,9 @@
 #   ./run.sh --webui-only    WebUIだけ。TTSは別マシン
 #   ./run.sh --tts-only      TTSだけ。WebUIは別マシン
 #
-# 1台につきTTSは1つです。参照音声とテキスト指定の両方を同時に使いたい場合は、
-# 2台目のMacで AUTOSPEAK_TTS_KIND=caption を指定して --tts-only を動かし、
-# そのアドレスをWebUIの「設定 → TTSサーバー」に追加してください。
+# 1台につきTTSは1つです。既定の v4 は参照音声とテキスト指定の両方を1つの
+# チェックポイントで扱うので、通常はこれ1台で足ります。使うモデルを変える場合は
+# .env の AUTOSPEAK_TTS_CHECKPOINT を書き換えてください。
 #
 # 既定モードは .env の AUTOSPEAK_MODE=all|webui|tts でも指定できます。
 set -euo pipefail
@@ -92,7 +92,7 @@ case "$MODE" in
   tts)
     "$ROOT/start_tts.sh"
     echo
-    echo "TTS（$TTS_KIND）のみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
+    echo "TTS（$CHECKPOINT）のみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
     echo "停止: ./stop_tts.sh"
     ;;
   webui)

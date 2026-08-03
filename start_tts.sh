@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # Start the Irodori-TTS server for this machine and wait for it to be ready.
 #
-# One machine runs one TTS server. A server holds exactly one checkpoint, and
-# two checkpoints on the same Mac fight over memory and GPU — measured at ~17%
-# slower even when only one of them is synthesizing. To use both voice styles at
-# once, run this on a second machine with AUTOSPEAK_TTS_KIND=caption and add its
-# address in the WebUI.
+# One machine runs one TTS server. The default v4 checkpoint covers both voice
+# cloning and text-described voices, so one server is usually enough. The older
+# v3 line needs one checkpoint per style, and two of them on the same Mac fight
+# over memory and GPU — measured at ~17% slower even when only one is busy — so
+# put the second one on another machine and add its address in the WebUI.
 #
-#   AUTOSPEAK_TTS_PORT   port to listen on               (default 8088)
-#   AUTOSPEAK_TTS_KIND   reference | caption             (default reference)
+#   AUTOSPEAK_TTS_PORT        port to listen on      (default 8088)
+#   AUTOSPEAK_TTS_CHECKPOINT  Hugging Face repo, or repo/subfolder for the
+#                             quantized variants     (default v4 Small)
 #
 # Stays up after this script exits. Stop it with ./stop_tts.sh
 set -uo pipefail
@@ -20,10 +21,12 @@ TTS="$ROOT/vendor/Irodori-TTS-Server"
 TTS_REPO="https://github.com/Aratako/Irodori-TTS-Server.git"
 mkdir -p "$ROOT/logs"
 
-case "$TTS_KIND" in
-  reference) CHECKPOINT="Aratako/Irodori-TTS-500M-v3" ;;
-  caption)   CHECKPOINT="Aratako/Irodori-TTS-600M-v3-VoiceDesign" ;;
-  *) echo "AUTOSPEAK_TTS_KIND が不正です: '$TTS_KIND'（reference / caption）"; exit 2 ;;
+CHECKPOINT="$TTS_CHECKPOINT"
+[[ -n "$CHECKPOINT" ]] || { echo "AUTOSPEAK_TTS_CHECKPOINT が空です"; exit 2; }
+case "$CHECKPOINT" in
+  *v4*)          KIND_LABEL="参照音声・テキスト指定の両対応" ;;
+  *VoiceDesign*) KIND_LABEL="テキスト指定のみ" ;;
+  *)             KIND_LABEL="参照音声のみ" ;;
 esac
 
 # Irodori-TTS-Server is not vendored into this repository — it stays an
@@ -50,9 +53,9 @@ command -v uv  >/dev/null || { echo "uv が必要です: brew install uv"; exit 
 bootstrap_tts
 
 if curl -sf --max-time 3 "http://127.0.0.1:$TTS_PORT/health" >/dev/null 2>&1; then
-  echo "[$TTS_KIND] already running on :$TTS_PORT"
+  echo "[$KIND_LABEL] already running on :$TTS_PORT"
 else
-  echo "[$TTS_KIND] starting on :$TTS_PORT ($CHECKPOINT)"
+  echo "[$KIND_LABEL] starting on :$TTS_PORT ($CHECKPOINT)"
   PYTHONPATH="$TTS/src" \
   IRODORI_MODEL_DEVICE=mps \
   IRODORI_CODEC_DEVICE=mps \

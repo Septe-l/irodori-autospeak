@@ -73,23 +73,43 @@ class TTSEndpoint(BaseModel):
     """
 
     url: str
-    kind: str = "reference"   # "reference" (500M-v3) | "caption" (600M VoiceDesign)
+    kind: str = "reference"
+    """"reference" clones a wav, "caption" takes a text description, "both" is a
+    v4 checkpoint that does either."""
     enabled: bool = True
 
     def normalized(self) -> TTSEndpoint:
         url = self.url.strip().rstrip("/")
         if url and not url.startswith(("http://", "https://")):
             url = f"http://{url}"
-        return TTSEndpoint(
-            url=url,
-            kind="caption" if self.kind == "caption" else "reference",
-            enabled=self.enabled,
-        )
+        kind = self.kind if self.kind in ("reference", "caption", "both") else "reference"
+        return TTSEndpoint(url=url, kind=kind, enabled=self.enabled)
+
+    def serves(self, mode: str) -> bool:
+        return self.kind == "both" or self.kind == mode
+
+
+# Checkpoints the WebUI offers by name. Any other Hugging Face repo — including
+# `repo/subfolder` for the quantized variants — can be typed in directly.
+TTS_CHECKPOINTS: dict[str, str] = {
+    "Aratako/Irodori-TTS-v4-Small": "v4 Small（推奨・参照音声とテキスト指定の両対応）",
+    "Aratako/Irodori-TTS-v4-Small-Quantized/int8-weight-only": "v4 Small int8（省メモリ）",
+    "Aratako/Irodori-TTS-v4-Small-Quantized/int4-weight-only": "v4 Small int4（最も省メモリ）",
+    "Aratako/Irodori-TTS-500M-v3": "v3 500M（参照音声のみ）",
+    "Aratako/Irodori-TTS-600M-v3-VoiceDesign": "v3 600M VoiceDesign（テキスト指定のみ）",
+}
 
 
 def kind_from_checkpoint(checkpoint: str) -> str:
-    """Which voice styles a server supports, judged by the checkpoint it loaded."""
-    return "caption" if "voicedesign" in (checkpoint or "").lower() else "reference"
+    """Which voice styles a checkpoint can produce.
+
+    v4 handles reference cloning and text-described voices in one model, so a
+    single server covers both; the v3 line needed one checkpoint per style.
+    """
+    name = (checkpoint or "").lower()
+    if "v4" in name:
+        return "both"
+    return "caption" if "voicedesign" in name else "reference"
 
 
 class Settings(BaseSettings):
@@ -146,9 +166,10 @@ class Settings(BaseSettings):
     # so a second checkpoint belongs on a second machine.
     tts_port: int = 8088
     """Port start_tts.sh launches the local TTS server on."""
-    tts_kind: str = "reference"
-    """Which checkpoint the local server loads: 'reference' (500M-v3, clones a
-    wav) or 'caption' (600M VoiceDesign, takes a text voice description)."""
+    tts_checkpoint: str = "Aratako/Irodori-TTS-v4-Small"
+    """Which checkpoint start_tts.sh loads. A Hugging Face repo, optionally with
+    a subfolder for the quantized variants. v4 serves both voice styles; the v3
+    line needs one server per style."""
 
     tts_ref_urls: str = ""
     """Seeds the endpoint list on first run: extra reference-checkpoint servers
@@ -211,10 +232,13 @@ class Settings(BaseSettings):
 
 
     def available_kinds(self) -> list[str]:
-        return sorted({e.kind for e in self.live_endpoints()})
+        kinds: set[str] = set()
+        for e in self.live_endpoints():
+            kinds.update(("reference", "caption") if e.kind == "both" else (e.kind,))
+        return sorted(kinds)
 
     def endpoints_for_mode(self, mode: str) -> list[str]:
-        return [e.url for e in self.live_endpoints() if e.kind == mode]
+        return [e.url for e in self.live_endpoints() if e.serves(mode)]
 
     def ref_endpoints(self) -> list[str]:
         return self.endpoints_for_mode("reference")
@@ -234,7 +258,7 @@ class Settings(BaseSettings):
         return [e for e in out if not (e.url in seen or seen.add(e.url))]
 
     def local_kind(self) -> str:
-        return "caption" if self.tts_kind == "caption" else "reference"
+        return kind_from_checkpoint(self.tts_checkpoint)
 
     # --- voice display names ---
 
@@ -255,9 +279,9 @@ class Settings(BaseSettings):
     mcp_timeout: float = 20.0
 
     # --- reference audio ---
-    ref_target_seconds: float = 15.0
-    """Uploads longer than this are trimmed. Voice cloning wants a short, clean
-    sample; a long one mostly adds noise and encoding time."""
+    ref_target_seconds: float = 30.0
+    """Uploads longer than this are trimmed. v4 takes up to 120s of reference and
+    its model card asks for 30s or more; v3 preferred 10-15s."""
 
     # --- pacing ---
     prefetch_turns: int = 8
@@ -306,6 +330,7 @@ PERSISTED_FIELDS = (
     "speaker_mode",
     "speakers",
     "tts_endpoints",
+    "tts_checkpoint",
     "tts_num_steps",
     "tts_speed",
     "prefetch_turns",

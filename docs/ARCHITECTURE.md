@@ -16,8 +16,8 @@ Dockerでの運用は [DOCKER.md](DOCKER.md)。
 WebUIは http://localhost:8000。初回はモデルのダウンロードとロードで2〜3分かかる。
 以降は20秒ほど。TTSだけ止めたいときは `./stop_tts.sh`。
 
-**1台につきTTSは1つ。** チェックポイントは `.env` の `AUTOSPEAK_TTS_KIND`（`reference` /
-`caption`）で選ぶ。2種類を同時に使いたい場合は2台目のMacが必要（下記）。
+**1台につきTTSは1つ。** 使うモデルは `.env` の `AUTOSPEAK_TTS_CHECKPOINT` で選ぶ。
+既定の v4 は参照音声とテキスト指定の両方を1モデルで扱うので、通常はこれ1台で足りる。
 
 `--webui-only` では TTS の接続先が未設定だと起動を止める。空のままだと `127.0.0.1` を
 見にいって何も無い、という分かりにくい失敗になるため。TTS本体の取得（1.3GB）も行わない。
@@ -43,7 +43,7 @@ WebUIは http://localhost:8000。初回はモデルのダウンロードとロ�
 ```
 AUTOSPEAK_PORT=8000          # WebUI
 AUTOSPEAK_TTS_PORT=8088      # このマシンのTTS
-AUTOSPEAK_TTS_KIND=reference # reference（参照音声）/ caption（テキスト指定）
+AUTOSPEAK_TTS_CHECKPOINT=Aratako/Irodori-TTS-v4-Small
 ```
 
 他のマシンのTTSは、WebUIの「設定 → TTSサーバー」で追加する。`.env` の
@@ -99,6 +99,28 @@ WebUIはモデルもGPUも使わないHTTPクライアントなので、**別マ
 
 ## TTSサーバー
 
+### 使うモデル
+
+`.env` の `AUTOSPEAK_TTS_CHECKPOINT` で選ぶ。既定は **v4 Small**。
+
+| チェックポイント | 対応 | 実測RTF（M1 Max・LLM待機中） |
+|---|---|---|
+| `Aratako/Irodori-TTS-v4-Small` | 参照音声・テキスト指定の**両方** | steps20: 0.63 / steps16: 0.55 |
+| `.../v4-Small-Quantized/int8-weight-only` | 同上 | steps20: 0.91 |
+| `Aratako/Irodori-TTS-500M-v3` | 参照音声のみ | steps20: 0.53 |
+| `Aratako/Irodori-TTS-600M-v3-VoiceDesign` | テキスト指定のみ | steps24: 0.82 |
+
+**v4は1つのモデルで両方の声の作り方に対応する。** v3では2台必要だった
+「片方が参照音声・片方がテキスト指定」の2人構成が、1台で組めるようになった。
+接続テストを押すとチェックポイントから種別を判定し、v4なら「両対応」が入る。
+
+v4はv3の500Mより大きい（766M）ぶん1ステップが重いので、`num_steps` を16程度まで
+下げるとv3と同等の速度になる。**MPSでは量子化しても速くならない**（int8はfp32より
+遅い実測）。量子化はメモリを削りたいときだけ意味がある。
+
+v4は参照音声を最大120秒まで受け付け、モデルカードは30秒以上を勧めている。
+アップロード時の切り出しの既定値も30秒にしてある（v3は10〜15秒が適切だった）。
+
 **1台のマシンでは1つのTTSしか動かさない。** サーバーはチェックポイントを1つしか持てず、
 2つを同じMacに載せると片方が合成していなくてもメモリとGPUを取り合う（実測で RTF 0.73 → 0.88、
 約17%悪化）。そのため両方のチェックポイントを使いたい場合は2台目のマシンが必須。
@@ -106,8 +128,7 @@ WebUIはモデルもGPUも使わないHTTPクライアントなので、**別マ
 2台目の手順:
 
 ```bash
-# 2台目のMacで
-echo "AUTOSPEAK_TTS_KIND=caption" >> .env
+# 2台目のMacで（合成を並列化したい場合）
 ./run.sh --tts-only
 ```
 

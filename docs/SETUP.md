@@ -133,7 +133,7 @@ cd ~/Documents/Claude/irodori-autospeak
 AUTOSPEAK_HOST=0.0.0.0
 AUTOSPEAK_PORT=8000           # WebUI
 AUTOSPEAK_TTS_PORT=8088       # このマシンのTTS
-AUTOSPEAK_TTS_KIND=reference  # reference / caption
+AUTOSPEAK_TTS_CHECKPOINT=Aratako/Irodori-TTS-v4-Small
 ```
 
 他のマシンのTTSは、WebUIの「設定 → TTSサーバー」で追加するのが基本です。
@@ -157,19 +157,21 @@ AUTOSPEAK_TTS_CAPTION_URLS=http://127.0.0.1:8089
 
 TTSサーバーを1つ立ち上げてから http://localhost:8000 を開きます。
 
-**初回はモデルのダウンロードで数分かかります。**`AUTOSPEAK_TTS_KIND` で選んだほうを取得します。
+**初回はモデルのダウンロードで数分かかります。**`AUTOSPEAK_TTS_CHECKPOINT` のものを取得します。
 
-| kind | チェックポイント | 用途 |
-|---|---|---|
-| `reference`（既定） | `Aratako/Irodori-TTS-500M-v3` | 参照音声のクローン |
-| `caption` | `Aratako/Irodori-TTS-600M-v3-VoiceDesign` | テキストで声を指定 |
+| チェックポイント | 用途 |
+|---|---|
+| `Aratako/Irodori-TTS-v4-Small`（既定） | 参照音声のクローンとテキスト指定の**両方** |
+| `.../Irodori-TTS-v4-Small-Quantized/int8-weight-only` | 同上・省メモリ（MPSでは速くはならない） |
+| `Aratako/Irodori-TTS-500M-v3` | 参照音声のみ（v3） |
+| `Aratako/Irodori-TTS-600M-v3-VoiceDesign` | テキスト指定のみ（v3） |
 
-どちらもMITライセンス・非ゲートなのでHugging Faceのトークンは不要です。
+いずれもMITライセンス・非ゲートなのでHugging Faceのトークンは不要です。
 
 **1台につきTTSは1つです。** 2つ載せると片方が合成していなくてもメモリとGPUを取り合い、
-約17%遅くなります。両方のチェックポイントを使いたい場合は2台目のマシンで
-`AUTOSPEAK_TTS_KIND=caption` を指定して `./run.sh --tts-only` を動かし、
-WebUIの「設定 → TTSサーバー」でそのアドレスを追加してください。
+約17%遅くなります。既定の v4 は1モデルで両方の声の作り方に対応するので、
+通常は1台で足ります。合成を並列化したい場合だけ、2台目のマシンで
+`./run.sh --tts-only` を動かし、WebUIの「設定 → TTSサーバー」でアドレスを追加してください。
 
 2回目以降の起動は20秒ほどです。TTSだけ止めるときは `./stop_tts.sh`。
 

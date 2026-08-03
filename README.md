@@ -58,11 +58,11 @@ WebUIに接続可能なTTSのみを実行します。WebUIモードとの組み�
 ./run.sh --tts-only
 ```
 
-2台目として、テキスト指示で声を作るTTSを動かす場合は、実行前に種類を指定します。
+使うモデルを変える場合は、実行前に指定します。
 
 ```bash
 cp .env.example .env
-$EDITOR .env    # AUTOSPEAK_TTS_KIND=caption にする
+$EDITOR .env    # AUTOSPEAK_TTS_CHECKPOINT を書き換える
 ./run.sh --tts-only
 ```
 

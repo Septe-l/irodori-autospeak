@@ -363,6 +363,7 @@
     row.innerHTML = `
       <input class="tts-url" type="text" placeholder="http://127.0.0.1:8088">
       <select class="tts-kind">
+        <option value="both">両対応（v4）</option>
         <option value="reference">参照音声</option>
         <option value="caption">テキスト指定</option>
       </select>
@@ -421,11 +422,13 @@
       .filter((e) => e.url);
   }
 
-  const KIND_LABEL = { caption: "テキスト指定", reference: "参照音声" };
+  const KIND_LABEL = { both: "両対応", caption: "テキスト指定", reference: "参照音声" };
 
   function updateTtsNote() {
     const eps = collectEndpoints();
-    const kinds = [...new Set(eps.map((e) => e.kind))];
+    // A "both" endpoint satisfies either speaker style on its own.
+    const kinds = [...new Set(eps.flatMap(
+      (e) => (e.kind === "both" ? ["reference", "caption"] : [e.kind])))];
     const note = $("tts-note");
     if (eps.length === 0) {
       note.textContent = "TTSサーバーがありません。音声は生成されません。";
@@ -433,7 +436,7 @@
       const names = kinds.map((k) => KIND_LABEL[k]).join(" / ");
       note.textContent =
         kinds.length >= 2
-          ? `${eps.length}台（${names}）。参照音声とテキスト指定を混ぜた2人構成にできます。`
+          ? `${eps.length}台。参照音声とテキスト指定を混ぜた2人構成にできます。`
           : `${eps.length}台（${names}）。2人とも${names}にすれば2人交互にできます。`;
     }
     syncSpeakerMode();
