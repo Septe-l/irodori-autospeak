@@ -161,7 +161,9 @@ class Settings(BaseSettings):
     """For reasoning models (gpt-oss and the like). Their thinking is spent out of
     the same token budget as the answer, and at 'high' a turn can burn the whole
     budget and produce no speech at all. Non-reasoning models ignore the field.
-    Set to "" to omit it entirely."""
+    Set to "" to omit it entirely. "none" turns thinking off where the model
+    allows it: gemma-4 QAT in LM Studio still thinks ~600 tokens at "low" and
+    runs out of budget before speaking, but answers directly at "none"."""
 
     # --- Irodori-TTS ---
     # One machine runs one TTS server. Two checkpoints on the same Mac fight for

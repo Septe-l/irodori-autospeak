@@ -176,6 +176,9 @@ button.small { padding: 4px 10px; font-size: 12px; }
 }
 .tts-row .tts-del { color: var(--danger); }
 .tts-row.off input, .tts-row.off select { opacity: .45; }
+/* Masked without type="password", which browsers treat as a login form and
+   quietly refill with a saved password over whatever was pasted. */
+.secret { -webkit-text-security: disc; }
 .tts-status { grid-column: 1 / -1; font-size: 12px; color: var(--muted); margin-top: -2px; }
 .tts-status.ok { color: var(--ok); }
 .tts-status.ng { color: var(--danger); }

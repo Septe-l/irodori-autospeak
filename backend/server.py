@@ -258,14 +258,16 @@ async def write_settings(body: SettingsBody) -> dict:
     warnings: list[str] = []
 
     if body.llm_url is not None:
-        settings.llm_url = _normalize_url(body.llm_url) or settings.llm_url
+        settings.llm_url = _normalize_llm_url(body.llm_url) or settings.llm_url
     if body.llm_api_key is not None:
         settings.llm_api_key = body.llm_api_key.strip()
-    if body.llm_model is not None:
+    # The model list is empty while LM Studio is unreachable or refusing the
+    # token, and saving the panel then would otherwise wipe the chosen model.
+    if body.llm_model:
         settings.llm_model = body.llm_model
     if body.llm_reasoning_effort is not None:
         effort = body.llm_reasoning_effort.strip()
-        settings.llm_reasoning_effort = effort if effort in ("low", "medium", "high") else ""
+        settings.llm_reasoning_effort = effort if effort in ("none", "low", "medium", "high") else ""
     if body.speaker_mode in ("solo", "duo"):
         settings.speaker_mode = body.speaker_mode
     if body.tts_endpoints is not None:
@@ -421,21 +423,41 @@ def _normalize_url(raw: str) -> str:
     return url
 
 
+def _normalize_llm_url(raw: str) -> str:
+    """LM Studio's own address, without the OpenAI-style "/v1" people copy from
+    other clients' base-URL fields. The paths are appended here, so a kept "/v1"
+    would ask for /v1/api/v0/models — which LM Studio answers with a 401
+    "Invalid token" even when the token is fine."""
+    url = _normalize_url(raw)
+    if url.endswith("/v1"):
+        url = url[:-3]
+    return url
+
+
 @app.post("/api/llm/probe")
 async def probe_llm(body: ProbeBody) -> dict:
     """Check an LM Studio address answers, and list what it can run."""
-    url = _normalize_url(body.url)
+    url = _normalize_llm_url(body.url)
     if not url:
         raise HTTPException(status_code=400, detail="URLが空です")
     api_key = settings.llm_api_key if body.api_key is None else body.api_key.strip()
     try:
         models = await engine.llm.fetch_models(url, api_key)
     except httpx.HTTPStatusError as e:
-        if e.response.status_code in (401, 403):
-            error = ("APIトークンが違います" if api_key else
-                     "APIトークンが必要です。LM Studio の Developer → Server Settings で発行したものを入力してください")
+        # LM Studio says why it refused (missing, malformed, unknown, or lacking
+        # a permission), with the token masked — pass that on rather than guess.
+        try:
+            detail = e.response.json()["error"]["message"]
+        except Exception:  # noqa: BLE001
+            detail = e.response.text[:300]
+        if not api_key and e.response.status_code in (401, 403):
+            error = "APIトークンが必要です。LM Studio の Developer → Server Settings で発行したものを入力してください"
         else:
-            error = f"HTTP {e.response.status_code}"
+            error = f"HTTP {e.response.status_code}: {detail}"
+            if "Invalid LM Studio API token" in detail:
+                # Seen in practice: one letter of the id half retyped in the
+                # wrong case. The secret half can be right and it still fails.
+                error += "（大文字・小文字の違いも含めて、発行されたトークンと一字ずつ一致しているか確認してください）"
         return {"url": url, "ok": False, "error": error}
     except Exception as e:  # noqa: BLE001
         return {

@@ -92,7 +92,7 @@ case "$MODE" in
   tts)
     "$ROOT/start_tts.sh"
     echo
-    echo "TTS（$CHECKPOINT）のみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
+    echo "TTS（$TTS_CHECKPOINT）のみ起動しました。WebUIは別マシンで --webui-only で動かしてください。"
     echo "停止: ./stop_tts.sh"
     ;;
   webui)

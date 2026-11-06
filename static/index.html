@@ -66,7 +66,7 @@
         <button id="btn-test-llm" class="tts-test" type="button">接続</button>
       </div>
       <div class="conn-row">
-        <input id="set-llm-key" type="password" autocomplete="off" placeholder="APIトークン（未使用なら空欄）">
+        <input id="set-llm-key" class="secret" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" data-1p-ignore data-lpignore="true" placeholder="APIトークン（未使用なら空欄）">
         <button id="btn-clear-llm-key" class="tts-test" type="button">消去</button>
       </div>
       <div id="llm-status" class="tts-status"></div>
@@ -75,6 +75,7 @@
       </label>
       <label>思考の深さ（Thinkingモデルのみ）
         <select id="set-effort">
+          <option value="none">none（思考しない・最速）</option>
           <option value="low">low（速い・推奨）</option>
           <option value="medium">medium</option>
           <option value="high">high（本文が出ないことがある）</option>
