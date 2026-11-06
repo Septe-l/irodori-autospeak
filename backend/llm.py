@@ -145,6 +145,26 @@ class LLMClient:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
 
+    @staticmethod
+    def auth_headers(api_key: str) -> dict[str, str]:
+        """LM Studio's "Require API token" setting expects a Bearer token on every
+        request, the native /api/v0 endpoints included."""
+        return {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+    async def fetch_models(self, url: str, api_key: str) -> list[dict]:
+        """Like list_models but for an arbitrary server, and raising on failure so
+        the connection test can say why (a 401 means the token is wrong)."""
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(f"{url}/api/v0/models", headers=self.auth_headers(api_key))
+            resp.raise_for_status()
+        models = [
+            {"id": m["id"], "loaded": m.get("state") == "loaded"}
+            for m in resp.json().get("data", [])
+            if m.get("type") in ("llm", "vlm")
+        ]
+        models.sort(key=lambda m: (not m["loaded"], m["id"]))
+        return models
+
     async def list_models(self) -> list[dict]:
         """Chat-capable models only, loaded ones first.
 
@@ -154,16 +174,7 @@ class LLMClient:
         so the UI needs to show which one is already resident.
         """
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(f"{self.s.llm_url}/api/v0/models")
-                resp.raise_for_status()
-                models = [
-                    {"id": m["id"], "loaded": m.get("state") == "loaded"}
-                    for m in resp.json().get("data", [])
-                    if m.get("type") in ("llm", "vlm")
-                ]
-                models.sort(key=lambda m: (not m["loaded"], m["id"]))
-                return models
+            return await self.fetch_models(self.s.llm_url, self.s.llm_api_key)
         except Exception as e:  # noqa: BLE001
             logger.warning("model list failed: %s: %s", type(e).__name__, e)
             return []
@@ -187,7 +198,10 @@ class LLMClient:
             payload["reasoning_effort"] = self.s.llm_reasoning_effort
         async with httpx.AsyncClient(timeout=self.s.llm_timeout) as client:
             async with client.stream(
-                "POST", f"{self.s.llm_url}/v1/chat/completions", json=payload
+                "POST",
+                f"{self.s.llm_url}/v1/chat/completions",
+                json=payload,
+                headers=self.auth_headers(self.s.llm_api_key),
             ) as resp:
                 resp.raise_for_status()
                 async for line in resp.aiter_lines():

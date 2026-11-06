@@ -55,6 +55,8 @@ class EndpointBody(BaseModel):
 
 class ProbeBody(BaseModel):
     url: str
+    api_key: str | None = None
+    """LLM probe only. None tests with the saved token."""
 
 
 class RenameBody(BaseModel):
@@ -63,6 +65,8 @@ class RenameBody(BaseModel):
 
 class SettingsBody(BaseModel):
     llm_url: str | None = None
+    llm_api_key: str | None = None
+    """None keeps the saved token, "" removes it."""
     llm_model: str | None = None
     llm_reasoning_effort: str | None = None
     speaker_mode: str | None = None
@@ -222,6 +226,9 @@ async def clear() -> dict:
 async def read_settings() -> dict:
     return {
         "llm_url": settings.llm_url,
+        # The token itself never goes back out: anyone who can open the WebUI
+        # would otherwise be able to read it and talk to LM Studio directly.
+        "llm_api_key_set": bool(settings.llm_api_key),
         "llm_model": settings.llm_model,
         "llm_reasoning_effort": settings.llm_reasoning_effort,
         "speaker_mode": settings.speaker_mode,
@@ -252,6 +259,8 @@ async def write_settings(body: SettingsBody) -> dict:
 
     if body.llm_url is not None:
         settings.llm_url = _normalize_url(body.llm_url) or settings.llm_url
+    if body.llm_api_key is not None:
+        settings.llm_api_key = body.llm_api_key.strip()
     if body.llm_model is not None:
         settings.llm_model = body.llm_model
     if body.llm_reasoning_effort is not None:
@@ -418,19 +427,25 @@ async def probe_llm(body: ProbeBody) -> dict:
     url = _normalize_url(body.url)
     if not url:
         raise HTTPException(status_code=400, detail="URLが空です")
-    previous = settings.llm_url
-    settings.llm_url = url
+    api_key = settings.llm_api_key if body.api_key is None else body.api_key.strip()
     try:
-        models = await engine.llm.list_models()
-    finally:
-        settings.llm_url = previous
-    if not models:
+        models = await engine.llm.fetch_models(url, api_key)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            error = ("APIトークンが違います" if api_key else
+                     "APIトークンが必要です。LM Studio の Developer → Server Settings で発行したものを入力してください")
+        else:
+            error = f"HTTP {e.response.status_code}"
+        return {"url": url, "ok": False, "error": error}
+    except Exception as e:  # noqa: BLE001
         return {
             "url": url,
             "ok": False,
-            "error": "応答がないか、対話できるモデルがありません。"
+            "error": f"{type(e).__name__}: {e}。"
             "LM Studio の Server を起動し、Serve on Local Network を有効にしてください。",
         }
+    if not models:
+        return {"url": url, "ok": False, "error": "対話できるモデルがありません"}
     return {"url": url, "ok": True, "models": models}
 
 

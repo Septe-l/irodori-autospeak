@@ -147,6 +147,9 @@ class Settings(BaseSettings):
 
     # --- LM Studio ---
     llm_url: str = "http://127.0.0.1:1234"
+    llm_api_key: str = ""
+    """LM Studio API token, for servers with "Require API token" turned on.
+    Sent as a Bearer token; empty sends no Authorization header at all."""
     llm_model: str = "gemma-4-26b-a4b-it-mlx"
     """Must be a model LM Studio can actually hold. Loading a second large model
     on a 32GB Mac fails with an 'insufficient system resources' 400."""
@@ -324,6 +327,7 @@ OVERRIDES_PATH = Path(
 )
 PERSISTED_FIELDS = (
     "llm_url",
+    "llm_api_key",
     "llm_model",
     "llm_reasoning_effort",
     "llm_temperature",

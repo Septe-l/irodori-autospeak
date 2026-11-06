@@ -466,7 +466,7 @@
 
   // ---- SearXNG / MCP connection tests -------------------------------------
 
-  async function probeInto(path, inputId, statusId, describe) {
+  async function probeInto(path, inputId, statusId, describe, extra = {}) {
     const input = $(inputId);
     const status = $(statusId);
     const url = input.value.trim();
@@ -477,7 +477,7 @@
       const data = await fetch(path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, ...extra }),
       }).then((r) => r.json());
       // Show the address the server actually used, so a typed "host:port"
       // becomes the "http://host:port" that gets saved.
@@ -500,7 +500,34 @@
     await probeInto("/api/llm/probe", "set-llm-url", "llm-status", (d) => {
       fillModels(d.models, kept);
       return `OK  ${d.models.length} モデル`;
-    });
+    }, llmKeyField());
+  });
+
+  // The saved token is never sent back to the browser, so an empty field means
+  // "keep what is saved" rather than "no token". Clearing is its own button.
+  let llmKeyCleared = false;
+
+  function showLlmKeyState(isSet) {
+    const input = $("set-llm-key");
+    input.value = "";
+    input.placeholder = isSet
+      ? "APIトークン設定済み（変えるときだけ入力）"
+      : "APIトークン（未使用なら空欄）";
+  }
+
+  // undefined drops out of JSON.stringify, which the server reads as "keep".
+  function llmKeyField() {
+    const typed = $("set-llm-key").value.trim();
+    if (typed) return { api_key: typed };
+    if (llmKeyCleared) return { api_key: "" };
+    return {};
+  }
+
+  $("btn-clear-llm-key").addEventListener("click", () => {
+    llmKeyCleared = true;
+    showLlmKeyState(false);
+    $("llm-status").textContent = "保存するとAPIトークンを削除します";
+    $("llm-status").className = "tts-status";
   });
 
   $("btn-test-search").addEventListener("click", () =>
@@ -676,6 +703,8 @@
 
     fillModels(opt.models, cfg.llm_model);
     $("set-llm-url").value = cfg.llm_url || "";
+    llmKeyCleared = false;
+    showLlmKeyState(cfg.llm_api_key_set);
     $("set-effort").value = cfg.llm_reasoning_effort || "";
     $("llm-status").textContent = "";
 
@@ -723,6 +752,7 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         llm_url: $("set-llm-url").value.trim(),
+        llm_api_key: llmKeyField().api_key,
         llm_model: $("set-model").value,
         llm_reasoning_effort: $("set-effort").value,
         speaker_mode: $("set-speakermode").value,
@@ -751,6 +781,8 @@
       $("set-speakermode").value = cfg.speaker_mode;
       renderSpeakers(cfg);
       renderEndpoints(cfg);
+      llmKeyCleared = false;
+      showLlmKeyState(cfg.llm_api_key_set);
       return;
     }
     $("panel").hidden = true;

@@ -81,6 +81,14 @@ JSONが返れば完了です。`{"error": ...}` やHTMLが返る場合は `forma
 curl http://<LM Studioのホスト>:1234/v1/models
 ```
 
+Server Settings で **「Require API token」** を有効にしている場合は、発行したトークンを
+WebUIの「設定 → LLM」のAPIトークン欄に入れて「接続」を押してください（`.env` の
+`AUTOSPEAK_LLM_API_KEY` でも初期値を渡せます）。確認の curl にも付けます:
+
+```bash
+curl -H "Authorization: Bearer <トークン>" http://<LM Studioのホスト>:1234/v1/models
+```
+
 > **注意:** LM Studioはメモリが足りないモデルのロードを拒否します
 > （`Model loading was stopped due to insufficient system resources`）。
 > 大きなモデルを2つ同時には持てないので、**使うモデルを1つだけロードした状態**にしてください。
